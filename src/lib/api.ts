@@ -1,5 +1,6 @@
 import { BUCKET, supabase } from './supabase'
 import type { Categoria } from './categorias'
+import { guardar, guardarFoto, leer, olvidarFoto } from './local'
 
 export interface Prenda {
   id: string
@@ -24,7 +25,11 @@ export type DatosPrenda = Pick<Prenda, 'nombre' | 'categoria' | 'color' | 'notas
 
 // ─── URLs firmadas (bucket privado) ─────────────────────────
 const VIGENCIA = 60 * 60 * 6 // segundos
-const cacheUrls = new Map<string, { url: string; caduca: number }>()
+type Firmada = { url: string; caduca: number }
+// Se conservan entre aperturas: con la misma URL la foto no se vuelve a pedir ni a decodificar
+const cacheUrls = new Map<string, Firmada>(leer<[string, Firmada][]>('urls') ?? [])
+const guardarUrls = () => guardar('urls', [...cacheUrls].filter(([, u]) => u.caduca > Date.now()))
+export const olvidarUrls = () => cacheUrls.clear()
 
 async function firmar(paths: string[]): Promise<Map<string, string>> {
   const ahora = Date.now()
@@ -35,6 +40,7 @@ async function firmar(paths: string[]): Promise<Map<string, string>> {
     for (const d of data) {
       if (d.path && d.signedUrl) cacheUrls.set(d.path, { url: d.signedUrl, caduca: ahora + (VIGENCIA - 300) * 1000 })
     }
+    guardarUrls()
   }
   return new Map(paths.map((p) => [p, cacheUrls.get(p)?.url ?? '']))
 }
@@ -67,6 +73,7 @@ export async function crearPrenda(imagen: Blob, datos: DatosPrenda): Promise<Pre
     await supabase.storage.from(BUCKET).remove([path])
     throw error
   }
+  await guardarFoto(path, imagen)
   const urls = await firmar([path])
   return { ...data, url: urls.get(path) ?? '' }
 }
@@ -81,6 +88,8 @@ export async function borrarPrenda(prenda: Prenda) {
   if (error) throw error
   await supabase.storage.from(BUCKET).remove([prenda.image_path])
   cacheUrls.delete(prenda.image_path)
+  guardarUrls()
+  await olvidarFoto(prenda.image_path)
 }
 
 // ─── Combinaciones ──────────────────────────────────────────

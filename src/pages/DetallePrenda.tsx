@@ -12,7 +12,7 @@ import { useArmario } from '../lib/store'
 export function DetallePrenda() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { prendas, outfits, setPrendas, setOutfits, cargando } = useArmario()
+  const { prendas, outfits, setPrendas, setOutfits, actualizando } = useArmario()
   const prenda = prendas.find((p) => p.id === id)
 
   const [borrador, setBorrador] = useState<Borrador | null>(null)
@@ -23,7 +23,7 @@ export function DetallePrenda() {
     return (
       <>
         <Barra titulo="" />
-        <p className="sutil centrado">{cargando ? 'Cargando…' : 'Esta prenda ya no existe.'}</p>
+        <p className="sutil centrado">{actualizando ? 'Cargando…' : 'Esta prenda ya no existe.'}</p>
       </>
     )
   }

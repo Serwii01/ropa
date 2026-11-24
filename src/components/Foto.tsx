@@ -16,9 +16,11 @@ export function Foto({ src, className = '', ...resto }: ImgHTMLAttributes<HTMLIm
     if (ref.current?.complete) mostrar()
   }, [src])
 
+  // crossOrigin: sin CORS la respuesta es opaca y en la caché infla la cuota
   return (
     <img
       {...resto}
+      crossOrigin="anonymous"
       ref={ref}
       src={src}
       className={`foto ${lista ? 'lista' : ''} ${className}`}

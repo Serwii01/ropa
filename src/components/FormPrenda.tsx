@@ -11,26 +11,33 @@ export function limpiar(b: Borrador): DatosPrenda {
   return { nombre: t(b.nombre), categoria: b.categoria!, color: t(b.color), notas: t(b.notas) }
 }
 
+export function SelectorTipo({ valor, onChange }: { valor: Categoria | null; onChange: (c: Categoria) => void }) {
+  return (
+    <fieldset>
+      <legend>Tipo</legend>
+      <div className="chips envolver">
+        {CATEGORIAS.map((c) => (
+          <button
+            type="button"
+            key={c.id}
+            className={`chip ${valor === c.id ? 'activo' : ''}`}
+            aria-pressed={valor === c.id}
+            onClick={() => onChange(c.id)}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+    </fieldset>
+  )
+}
+
 export function FormPrenda({ valor, onChange }: { valor: Borrador; onChange: (b: Borrador) => void }) {
   const set = <K extends keyof Borrador>(k: K, v: Borrador[K]) => onChange({ ...valor, [k]: v })
 
   return (
     <div className="form">
-      <fieldset>
-        <legend>Tipo</legend>
-        <div className="chips envolver">
-          {CATEGORIAS.map((c) => (
-            <button
-              type="button"
-              key={c.id}
-              className={`chip ${valor.categoria === c.id ? 'activo' : ''}`}
-              onClick={() => set('categoria', c.id)}
-            >
-              {c.label}
-            </button>
-          ))}
-        </div>
-      </fieldset>
+      <SelectorTipo valor={valor.categoria} onChange={(c) => set('categoria', c)} />
       <label>
         <span>Nombre</span>
         <input value={valor.nombre ?? ''} onChange={(e) => set('nombre', e.target.value)} placeholder="Opcional · p. ej. Camiseta blanca básica" />

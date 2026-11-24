@@ -20,7 +20,15 @@ function soloClavePublica(): Plugin {
   }
 }
 
+// Con la página aislada el modelo usa varios hilos (mucho más rápido). En producción, en vercel.json.
+const aislada = {
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Embedder-Policy': 'require-corp',
+}
+
 export default defineConfig({
+  server: { headers: aislada },
+  preview: { headers: aislada },
   plugins: [
     soloClavePublica(),
     react(),
@@ -48,6 +56,17 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         navigateFallback: '/index.html',
         runtimeCaching: [
+          {
+            // Fotos del armario: nunca cambian, solo el token de su URL, que se quita de la clave.
+            // La función se copia tal cual al service worker: no puede usar nada de este archivo.
+            urlPattern: /^https?:\/\/[^/]+\/storage\/v1\/object\/sign\/prendas\/.*/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'fotos-prendas',
+              cacheableResponse: { statuses: [200] },
+              plugins: [{ cacheKeyWillBeUsed: async ({ request }) => request.url.split('?')[0] }],
+            },
+          },
           {
             // Modelo de @imgly/background-removal: se descarga una vez y queda en caché
             urlPattern: /^https:\/\/staticimgly\.com\/.*/,

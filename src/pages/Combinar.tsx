@@ -5,7 +5,7 @@ import { Foto } from '../components/Foto'
 import { Flatlay } from '../components/Flatlay'
 import { IconDado, IconPapelera } from '../components/Icons'
 import { borrarOutfit, guardarOutfit, type Outfit, type Prenda } from '../lib/api'
-import { CAPAS, capaDe, etiqueta, type Capa } from '../lib/categorias'
+import { CAPAS, cajaEnTarjeta, capaDe, etiqueta, type Capa } from '../lib/categorias'
 import { movimientoReducido } from '../lib/movimiento'
 import { useArmario } from '../lib/store'
 
@@ -35,9 +35,10 @@ export function Combinar() {
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Cargar la combinación al editar (cuando el armario termina de cargar)
+  // Cargar la combinación al editar, y refrescarla si llega algo más nuevo sin haberla tocado aún
+  const tocada = useRef(false)
   useEffect(() => {
-    if (!existente) return
+    if (!existente || tocada.current) return
     setSel(seleccionDe(existente, prendas))
     setNombre(existente.nombre ?? '')
   }, [existente, prendas])
@@ -57,6 +58,7 @@ export function Combinar() {
 
   function alternar(capa: Capa, pid: string) {
     clearTimeout(barajando.current)
+    tocada.current = true
     setAnimar(true)
     setSel((s) => ({ ...s, [capa]: s[capa] === pid ? undefined : pid }))
   }
@@ -81,6 +83,7 @@ export function Combinar() {
 
   function tirarDado() {
     clearTimeout(barajando.current)
+    tocada.current = true
     setAnimar(true)
     setTirada((t) => t + 1)
     let quedan = movimientoReducido() ? 0 : 3
@@ -97,7 +100,7 @@ export function Combinar() {
     setError(null)
     try {
       const o = await guardarOutfit({ id: existente?.id, nombre: nombre.trim() || null, prenda_ids: elegidas.map((p) => p.id) })
-      setOutfits((os) => (existente ? os.map((x) => (x.id === o.id ? o : x)) : [o, ...os]))
+      setOutfits((os) => (existente ? os.map((x) => (x.id === o.id ? o : x)) : [o, ...os.filter((x) => x.id !== o.id)]))
       navigate('/combinaciones', { replace: true, viewTransition: true })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -151,7 +154,7 @@ export function Combinar() {
                     aria-pressed={sel[capa] === p.id}
                     title={p.nombre ?? etiqueta(p.categoria)}
                   >
-                    <Foto src={p.url} alt={p.nombre ?? etiqueta(p.categoria)} loading="lazy" />
+                    <Foto style={cajaEnTarjeta(p.categoria)} src={p.url} alt={p.nombre ?? etiqueta(p.categoria)} loading="lazy" />
                   </button>
                 ))}
               </div>
@@ -162,7 +165,7 @@ export function Combinar() {
         <div className="pila">
           <label className="form">
             <span className="sutil">Nombre</span>
-            <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Opcional · p. ej. Domingo" />
+            <input value={nombre} onChange={(e) => { tocada.current = true; setNombre(e.target.value) }} placeholder="Opcional · p. ej. Domingo" />
           </label>
           {error && <p className="aviso">{error}</p>}
           <button className="btn primario ancho" disabled={elegidas.length === 0 || ocupado} onClick={guardar}>

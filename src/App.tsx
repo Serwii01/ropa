@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
-import type { Session } from '@supabase/supabase-js'
 import { configurado, supabase } from './lib/supabase'
 import { conTransicion } from './lib/movimiento'
+import { olvidarUrls } from './lib/api'
+import { guardar, leer, olvidarTodo } from './lib/local'
 import { ArmarioProvider } from './lib/store'
 import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
@@ -56,26 +57,41 @@ export default function App() {
 }
 
 function ConSesion() {
-  const [sesion, setSesion] = useState<Session | null | undefined>(undefined)
+  // Con el último usuario recordado se abre sin esperar a que Supabase renueve la sesión
+  const [inicial] = useState(() => leer<string>('usuario') ?? undefined)
+  const [usuario, setUsuario] = useState<string | null | undefined>(inicial)
 
   useEffect(() => {
-    let ultimo: string | null | undefined
-    function aplicar(s: Session | null) {
-      const usuario = s?.user.id ?? null
-      if (usuario === ultimo) return setSesion(s)
-      ultimo = usuario
-      conTransicion(() => setSesion(s))
+    let ultimo: string | null | undefined = inicial
+    function aplicar(id: string | null) {
+      if (id) guardar('usuario', id)
+      if (id === ultimo) return
+      ultimo = id
+      conTransicion(() => setUsuario(id))
     }
-    supabase.auth.getSession().then(({ data }) => aplicar(data.session))
-    const { data } = supabase.auth.onAuthStateChange((_e, s) => aplicar(s))
+    function olvidar() {
+      olvidarUrls()
+      olvidarTodo()
+      aplicar(null)
+    }
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (data.session) aplicar(data.session.user.id)
+      else if (!error) olvidar()
+      // Sin red no se puede renovar la sesión, pero tampoco se ha cerrado
+      else if (!ultimo) aplicar(null)
+    })
+    const { data } = supabase.auth.onAuthStateChange((evento, s) => {
+      if (evento === 'SIGNED_OUT') olvidar()
+      else if (s) aplicar(s.user.id)
+    })
     return () => data.subscription.unsubscribe()
-  }, [])
+  }, [inicial])
 
-  if (sesion === undefined) return <div className="splash"><span className="marca grande">ropa</span></div>
-  if (!sesion) return <Login />
+  if (usuario === undefined) return <div className="splash"><span className="marca grande">ropa</span></div>
+  if (!usuario) return <Login />
 
   return (
-    <ArmarioProvider key={sesion.user.id}>
+    <ArmarioProvider key={usuario} usuario={usuario}>
       <RouterProvider router={router} />
     </ArmarioProvider>
   )

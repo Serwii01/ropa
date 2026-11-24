@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Barra } from '../components/Layout'
-import { FormPrenda, borradorVacio, limpiar, type Borrador } from '../components/FormPrenda'
+import { Camara, hayCamara, pedirNivel } from '../components/Camara'
+import { FormPrenda, SelectorTipo, borradorVacio, limpiar, type Borrador } from '../components/FormPrenda'
 import { IconCamara, IconGaleria } from '../components/Icons'
 import { crearPrenda } from '../lib/api'
-import { comprimir, kb, quitarFondo } from '../lib/image'
+import { comprimir, kb, quitarFondo, SinPrenda } from '../lib/image'
+import { guardar as guardarLocal, leer } from '../lib/local'
 import { useArmario } from '../lib/store'
 
 type Fase = 'elegir' | 'procesando' | 'revisar'
@@ -15,6 +17,7 @@ export function NuevaPrenda() {
   const camara = useRef<HTMLInputElement>(null)
   const galeria = useRef<HTMLInputElement>(null)
 
+  const [enCamara, setEnCamara] = useState(false)
   const [fase, setFase] = useState<Fase>('elegir')
   const [conFondo, setConFondo] = useState(false)
   const [foto, setFoto] = useState<File | null>(null)
@@ -51,7 +54,11 @@ export function NuevaPrenda() {
       setFase('revisar')
     } catch (e) {
       console.error(e)
-      setError('No se pudo procesar la imagen. Prueba de nuevo o guárdala con fondo.')
+      setError(
+        e instanceof SinPrenda
+          ? 'No se distingue la prenda. Prueba con más luz o sobre un fondo de otro color, o guárdala con fondo.'
+          : 'No se pudo procesar la imagen. Prueba de nuevo o guárdala con fondo.',
+      )
       setFase('elegir')
     }
   }
@@ -62,12 +69,20 @@ export function NuevaPrenda() {
     if (f) procesar(f, conFondo)
   }
 
+  function hacerFoto() {
+    if (!hayCamara()) return camara.current?.click()
+    pedirNivel()
+    setEnCamara(true)
+  }
+
   async function guardar() {
     if (!resultado || !borrador.categoria) return
     setGuardando(true)
     try {
       const nueva = await crearPrenda(resultado, limpiar(borrador))
-      setPrendas((ps) => [nueva, ...ps])
+      setPrendas((ps) => [nueva, ...ps.filter((p) => p.id !== nueva.id)])
+      // Que el filtro recordado no esconda la prenda recién añadida
+      if (leer('filtro') !== nueva.categoria) guardarLocal('filtro', 'todas')
       navigate('/', { replace: true, viewTransition: true })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -82,10 +97,28 @@ export function NuevaPrenda() {
       <input ref={camara} type="file" accept="image/*" capture="environment" hidden onChange={elegido} />
       <input ref={galeria} type="file" accept="image/*" hidden onChange={elegido} />
 
+      {enCamara && (
+        <Camara
+          categoria={borrador.categoria}
+          onCerrar={() => setEnCamara(false)}
+          onSistema={() => {
+            setEnCamara(false)
+            camara.current?.click()
+          }}
+          onFoto={(f) => {
+            setEnCamara(false)
+            procesar(f, conFondo)
+          }}
+        />
+      )}
+
       {fase === 'elegir' && (
         <div className="pila">
+          <div className="form">
+            <SelectorTipo valor={borrador.categoria} onChange={(categoria) => setBorrador((b) => ({ ...b, categoria }))} />
+          </div>
           <div className="origenes">
-            <button className="origen" onClick={() => camara.current?.click()}>
+            <button className="origen" onClick={hacerFoto}>
               <IconCamara width={28} height={28} />
               <span>Hacer foto</span>
             </button>
@@ -102,7 +135,7 @@ export function NuevaPrenda() {
               <small className="sutil">Se hace en tu móvil. La primera vez descarga el modelo (~40 MB).</small>
             </span>
           </label>
-          <p className="sutil consejo">Consejo: prenda extendida sobre una superficie lisa y con buena luz.</p>
+          <p className="sutil consejo">{borrador.categoria ? 'Verás una silueta para colocar la prenda. Mejor sobre una superficie lisa y con buena luz.' : 'Elige el tipo para ver una silueta al hacer la foto.'}</p>
           {error && <p className="aviso">{error}</p>}
         </div>
       )}

@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
 import { Link, useViewTransitionState } from 'react-router-dom'
 import type { Prenda } from '../lib/api'
-import { CATEGORIAS, etiqueta, type Categoria } from '../lib/categorias'
+import { CATEGORIAS, cajaEnTarjeta, etiqueta, type Categoria } from '../lib/categorias'
+import { guardar, leer } from '../lib/local'
 import { useArmario } from '../lib/store'
 import { useFlip } from '../lib/movimiento'
 import { Foto } from '../components/Foto'
@@ -9,13 +10,16 @@ import { IconMas } from '../components/Icons'
 
 export function Armario() {
   const { prendas, cargando, error, recargar } = useArmario()
-  const [filtro, setFiltro] = useState<Categoria | 'todas'>('todas')
+  const [elegido, setElegido] = useState<Categoria | 'todas'>(() => leer<Categoria>('filtro') ?? 'todas')
+  // Si ya no quedan prendas de ese tipo, se ven todas
+  const filtro = prendas.some((p) => p.categoria === elegido) ? elegido : 'todas'
   const rejilla = useRef<HTMLDivElement>(null)
   const capturar = useFlip(rejilla, filtro)
 
   function filtrar(f: Categoria | 'todas') {
     capturar()
-    setFiltro(f)
+    setElegido(f)
+    guardar('filtro', f)
   }
 
   const presentes = useMemo(() => {
@@ -81,7 +85,7 @@ function Tarjeta({ prenda: p }: { prenda: Prenda }) {
   return (
     <Link to={ruta} viewTransition className="tarjeta" data-flip={p.id}>
       <div className="lienzo" style={vuela ? { viewTransitionName: 'foto-prenda' } : undefined}>
-        <Foto src={p.url} alt={p.nombre ?? etiqueta(p.categoria)} loading="lazy" />
+        <Foto style={cajaEnTarjeta(p.categoria)} src={p.url} alt={p.nombre ?? etiqueta(p.categoria)} loading="lazy" />
       </div>
       <div className="tarjeta-pie">
         <span className="tarjeta-nombre">{p.nombre ?? etiqueta(p.categoria)}</span>
