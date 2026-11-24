@@ -78,6 +78,7 @@ const PLANTILLAS: Record<Categoria, Plantilla> = {
   jersey: larga,
   vestido,
   chaqueta: larga,
+  chaqueton: larga,
   abrigo,
   pantalon,
   vaqueros: pantalon,

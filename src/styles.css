@@ -129,9 +129,9 @@ h1, h2 { margin: 0; font-weight: 600; letter-spacing: -0.02em; }
 .chip-n { opacity: 0.5; font-size: 12px; margin-left: 2px; }
 
 /* ─── Rejilla de prendas ─────────────────────────────────── */
-.rejilla { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-@media (min-width: 560px) { .rejilla { grid-template-columns: repeat(3, 1fr); } }
-.rejilla.mini { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.rejilla { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (min-width: 560px) { .rejilla { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.rejilla.mini { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 
 .tarjeta { display: flex; flex-direction: column; gap: 8px; }
 .lienzo {
@@ -243,11 +243,10 @@ h1, h2 { margin: 0; font-weight: 600; letter-spacing: -0.02em; }
   position: relative; aspect-ratio: 3 / 4; border-radius: var(--radio); background: var(--lienzo); overflow: hidden;
 }
 .flatlay .hueco { position: absolute; object-fit: contain; filter: drop-shadow(0 6px 10px rgb(0 0 0 / 0.1)); }
-.flatlay .exterior  { top: 5%; z-index: 1; object-position: top; }
-.flatlay .superior  { top: 7%; z-index: 3; object-position: top; }
-.flatlay .inferior  { top: 39%; z-index: 2; object-position: top; }
-.flatlay .calzado   { left: 32%; top: 81%; width: 32%; height: 16%; z-index: 3; }
-.flatlay .accesorio { left: 70%; top: 52%; width: 24%; height: 22%; z-index: 3; }
+.flatlay .arriba    { object-position: top; }
+.flatlay .inferior  { top: 39%; z-index: 5; object-position: top; }
+.flatlay .calzado   { left: 32%; top: 81%; width: 32%; height: 16%; z-index: 11; }
+.flatlay .accesorio { left: 70%; top: 52%; width: 24%; height: 22%; z-index: 11; }
 .flatlay-vacio { position: absolute; inset: 0; display: grid; place-items: center; color: var(--tinta-2); font-size: 14px; }
 
 .combinar { display: flex; flex-direction: column; gap: 20px; }

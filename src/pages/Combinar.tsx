@@ -66,15 +66,27 @@ export function Combinar() {
   function aleatorio(): Seleccion {
     const azar = <T,>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)]
     const s: Seleccion = {}
-    for (const capa of ['superior', 'inferior', 'calzado'] as Capa[]) {
+    // Como base vale una camiseta o una camisa
+    const bases = [...(porCapa.get('superior') ?? []), ...(porCapa.get('camisa') ?? [])]
+    if (bases.length) {
+      const base = azar(bases)
+      s[capaDe(base.categoria)] = base.id
+    }
+    // Sin base, al menos una sudadera o un jersey
+    const medias = porCapa.get('media')
+    if (medias?.length && (!bases.length || Math.random() < 0.4)) s.media = azar(medias).id
+    // Chaqueta o abrigo, no los dos
+    const fuera = [...(porCapa.get('exterior') ?? []), ...(porCapa.get('abrigo') ?? [])]
+    if (fuera.length && Math.random() < 0.5) {
+      const p = azar(fuera)
+      s[capaDe(p.categoria)] = p.id
+    }
+    for (const capa of ['inferior', 'calzado'] as Capa[]) {
       const xs = porCapa.get(capa)
       if (xs?.length) s[capa] = azar(xs).id
     }
-    // Las capas opcionales solo a veces
-    for (const capa of ['exterior', 'accesorio'] as Capa[]) {
-      const xs = porCapa.get(capa)
-      if (xs?.length && Math.random() < 0.5) s[capa] = azar(xs).id
-    }
+    const accesorios = porCapa.get('accesorio')
+    if (accesorios?.length && Math.random() < 0.5) s.accesorio = azar(accesorios).id
     // Un vestido no necesita parte de abajo
     const sup = prendas.find((p) => p.id === s.superior)
     if (sup?.categoria === 'vestido') delete s.inferior

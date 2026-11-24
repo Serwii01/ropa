@@ -1,9 +1,18 @@
-/** Capas de una combinación: cada prenda ocupa una según su categoría. */
-export type Capa = 'exterior' | 'superior' | 'inferior' | 'calzado' | 'accesorio'
+/**
+ * Capas de una combinación: cada prenda ocupa una según su categoría, y hay una prenda por capa.
+ * Las de arriba se superponen: camiseta, camisa abierta, sudadera, chaqueta y abrigo pueden ir juntas.
+ */
+export type Capa = 'superior' | 'camisa' | 'media' | 'exterior' | 'abrigo' | 'inferior' | 'calzado' | 'accesorio'
+
+/** Capas que se llevan una sobre otra, de dentro afuera. */
+export const CAPAS_ARRIBA: Capa[] = ['superior', 'camisa', 'media', 'exterior', 'abrigo']
 
 export const CAPAS: { id: Capa; label: string }[] = [
   { id: 'superior', label: 'Arriba' },
-  { id: 'exterior', label: 'Encima' },
+  { id: 'camisa', label: 'Camisa' },
+  { id: 'media', label: 'Sudadera o jersey' },
+  { id: 'exterior', label: 'Chaqueta' },
+  { id: 'abrigo', label: 'Abrigo' },
   { id: 'inferior', label: 'Abajo' },
   { id: 'calzado', label: 'Calzado' },
   { id: 'accesorio', label: 'Accesorio' },
@@ -12,13 +21,14 @@ export const CAPAS: { id: Capa; label: string }[] = [
 /** `cm`: ancho y alto aproximados de la prenda extendida; dan la proporción entre unas y otras. */
 export const CATEGORIAS = [
   { id: 'camiseta', label: 'Camiseta', capa: 'superior', cm: [75, 72] },
-  { id: 'camisa', label: 'Camisa', capa: 'superior', cm: [75, 76] },
+  { id: 'camisa', label: 'Camisa', capa: 'camisa', cm: [75, 76] },
   { id: 'top', label: 'Top', capa: 'superior', cm: [50, 50] },
-  { id: 'sudadera', label: 'Sudadera', capa: 'superior', cm: [80, 72] },
-  { id: 'jersey', label: 'Jersey', capa: 'superior', cm: [80, 70] },
+  { id: 'sudadera', label: 'Sudadera', capa: 'media', cm: [80, 72] },
+  { id: 'jersey', label: 'Jersey', capa: 'media', cm: [80, 70] },
   { id: 'vestido', label: 'Vestido', capa: 'superior', cm: [65, 110] },
   { id: 'chaqueta', label: 'Chaqueta', capa: 'exterior', cm: [82, 72] },
-  { id: 'abrigo', label: 'Abrigo', capa: 'exterior', cm: [82, 108] },
+  { id: 'chaqueton', label: 'Chaquetón', capa: 'abrigo', cm: [82, 86] },
+  { id: 'abrigo', label: 'Abrigo', capa: 'abrigo', cm: [82, 108] },
   { id: 'pantalon', label: 'Pantalón', capa: 'inferior', cm: [52, 105] },
   { id: 'vaqueros', label: 'Vaqueros', capa: 'inferior', cm: [52, 105] },
   { id: 'falda', label: 'Falda', capa: 'inferior', cm: [58, 65] },
@@ -51,6 +61,7 @@ const CUERPO: Partial<Record<Categoria, Cuerpo>> = {
   sudadera: torso(55),
   jersey: torso(54),
   chaqueta: torso(56),
+  chaqueton: torso(58),
   abrigo: torso(58),
   vestido: { ancho: 40, desde: 0.3, hasta: 0.42 },
   pantalon: cintura(40),
