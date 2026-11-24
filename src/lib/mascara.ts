@@ -38,11 +38,40 @@ function zonas(w: number, h: number, dentro: (i: number) => boolean) {
   return { etiqueta, area, tocaBorde }
 }
 
+/** Erosiona (o dilata) con un cuadrado de lado 2r+1, en dos pasadas. Fuera de la imagen no hay prenda. */
+function morfologia(m: Uint8Array, w: number, h: number, r: number, dilatar: boolean) {
+  const pasada = (src: Uint8Array, n: number, largo: number, inicio: (k: number) => number, salto: number) => {
+    const dst = new Uint8Array(src.length)
+    for (let k = 0; k < n; k++) {
+      const o = inicio(k)
+      let suma = 0
+      for (let j = 0; j < Math.min(r, largo); j++) suma += src[o + j * salto]
+      for (let j = 0; j < largo; j++) {
+        if (j + r < largo) suma += src[o + (j + r) * salto]
+        if (j - r - 1 >= 0) suma -= src[o + (j - r - 1) * salto]
+        dst[o + j * salto] = (dilatar ? suma > 0 : suma === 2 * r + 1) ? 1 : 0
+      }
+    }
+    return dst
+  }
+  return pasada(pasada(m, h, w, (y) => y * w, 1), w, h, (x) => x, w)
+}
+
+/** Borra los hilos finos pegados a la prenda (juntas del suelo, bordes de la sábana). */
+function quitarHilos(alfa: Uint8Array, w: number, h: number) {
+  const r = Math.max(1, Math.round(Math.max(w, h) * 0.002))
+  const binaria = alfa.map((a) => (a >= 25 ? 1 : 0))
+  // Se dilata algo más de lo erosionado para no redondear esquinas ni comerse el borde suave
+  const cuerpo = morfologia(morfologia(binaria, w, h, r, false), w, h, r * 2, true)
+  return alfa.map((a, i) => (cuerpo[i] ? a : 0))
+}
+
 /**
  * Limpia la máscara: quita manchas sueltas, tapa agujeros pequeños (estampados que el modelo toma
  * por fondo) y hace más firme el borde. Conserva piezas grandes separadas, como un par de zapatos.
  */
-export function limpiarMascara(alfa: Uint8Array, w: number, h: number): Uint8Array {
+export function limpiarMascara(cruda: Uint8Array, w: number, h: number): Uint8Array {
+  const alfa = quitarHilos(cruda, w, h)
   const visibles = zonas(w, h, (i) => alfa[i] >= 25)
   const mayor = Math.max(...visibles.area)
   const huecos = zonas(w, h, (i) => alfa[i] < UMBRAL)

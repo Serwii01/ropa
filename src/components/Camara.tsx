@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Categoria } from '../lib/categorias'
+import { arribaDelMovil, type Vec } from '../lib/retoque'
 import { plantillaDe } from '../lib/plantillas'
 
 export const hayCamara = () => Boolean(navigator.mediaDevices?.getUserMedia)
@@ -13,7 +14,8 @@ export function pedirNivel() {
 
 interface Props {
   categoria: Categoria | null
-  onFoto: (foto: File) => void
+  /** `arriba`: hacia dónde quedaba arriba respecto al móvil, si hay sensor. */
+  onFoto: (foto: File, arriba: Vec | null) => void
   onCerrar: () => void
   /** Abrir la cámara del sistema en su lugar. */
   onSistema: () => void
@@ -24,7 +26,7 @@ export function Camara({ categoria, onFoto, onCerrar, onSistema }: Props) {
   const [lista, setLista] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const plantilla = plantillaDe(categoria)
-  const inclinacion = useInclinacion()
+  const { grados: inclinacion, arriba } = useInclinacion()
 
   useEffect(() => {
     let cancelado = false
@@ -62,6 +64,8 @@ export function Camara({ categoria, onFoto, onCerrar, onSistema }: Props) {
 
   function disparar() {
     const v = video.current!
+    // Con la pantalla girada los ejes del sensor no son los de la imagen
+    const tomada = (screen.orientation?.angle ?? 0) === 0 ? arriba.current : null
     // Solo lo que se ve en el visor 3:4 (object-fit: cover)
     const w = Math.min(v.videoWidth, v.videoHeight * 0.75)
     const h = w / 0.75
@@ -72,7 +76,7 @@ export function Camara({ categoria, onFoto, onCerrar, onSistema }: Props) {
       .getContext('2d')!
       .drawImage(v, (v.videoWidth - w) / 2, (v.videoHeight - h) / 2, w, h, 0, 0, canvas.width, canvas.height)
     canvas.toBlob(
-      (b) => (b ? onFoto(new File([b], 'foto.jpg', { type: 'image/jpeg' })) : setError('No se pudo hacer la foto.')),
+      (b) => (b ? onFoto(new File([b], 'foto.jpg', { type: 'image/jpeg' }), tomada) : setError('No se pudo hacer la foto.')),
       'image/jpeg',
       0.94,
     )
@@ -125,17 +129,17 @@ export function Camara({ categoria, onFoto, onCerrar, onSistema }: Props) {
  */
 function useInclinacion() {
   const [grados, setGrados] = useState<number | null>(null)
+  const arriba = useRef<Vec | null>(null)
   useEffect(() => {
-    const rad = Math.PI / 180
     function medir(e: DeviceOrientationEvent) {
       if (e.beta == null || e.gamma == null) return
       // Componente de la gravedad perpendicular a la pantalla: 1 tumbado, 0 en vertical
-      const z = Math.min(1, Math.abs(Math.cos(e.beta * rad) * Math.cos(e.gamma * rad)))
-      const tumbado = Math.acos(z) / rad
+      arriba.current = arribaDelMovil(e.beta, e.gamma)
+      const tumbado = (Math.acos(Math.min(1, Math.abs(arriba.current[2]))) * 180) / Math.PI
       setGrados(Math.round(Math.min(tumbado, 90 - tumbado)))
     }
     addEventListener('deviceorientation', medir)
     return () => removeEventListener('deviceorientation', medir)
   }, [])
-  return grados
+  return { grados, arriba }
 }

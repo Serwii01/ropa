@@ -53,17 +53,20 @@ export async function listarPrendas(): Promise<Prenda[]> {
   return data.map((p) => ({ ...p, url: urls.get(p.image_path) ?? '' }))
 }
 
-export async function crearPrenda(imagen: Blob, datos: DatosPrenda): Promise<Prenda> {
+async function subirFoto(imagen: Blob): Promise<string> {
   const { data: auth } = await supabase.auth.getUser()
   if (!auth.user) throw new Error('Sesión caducada')
-
   const ext = imagen.type === 'image/webp' ? 'webp' : imagen.type === 'image/png' ? 'png' : 'jpg'
   const path = `${auth.user.id}/${crypto.randomUUID()}.${ext}`
-  const subida = await supabase.storage
+  const { error } = await supabase.storage
     .from(BUCKET)
     .upload(path, imagen, { contentType: imagen.type, cacheControl: '31536000', upsert: false })
-  if (subida.error) throw subida.error
+  if (error) throw error
+  return path
+}
 
+export async function crearPrenda(imagen: Blob, datos: DatosPrenda): Promise<Prenda> {
+  const path = await subirFoto(imagen)
   const { data, error } = await supabase
     .from('prendas')
     .insert({ ...datos, image_path: path })
@@ -81,6 +84,23 @@ export async function crearPrenda(imagen: Blob, datos: DatosPrenda): Promise<Pre
 export async function actualizarPrenda(id: string, datos: Partial<DatosPrenda>) {
   const { error } = await supabase.from('prendas').update(datos).eq('id', id)
   if (error) throw error
+}
+
+/** Sustituye la foto. La anterior solo se borra cuando la nueva ya está en uso. */
+export async function cambiarFoto(prenda: Prenda, imagen: Blob): Promise<Pick<Prenda, 'image_path' | 'url'>> {
+  const path = await subirFoto(imagen)
+  const { error } = await supabase.from('prendas').update({ image_path: path }).eq('id', prenda.id)
+  if (error) {
+    await supabase.storage.from(BUCKET).remove([path])
+    throw error
+  }
+  await guardarFoto(path, imagen)
+  const url = (await firmar([path])).get(path) ?? ''
+  await supabase.storage.from(BUCKET).remove([prenda.image_path])
+  cacheUrls.delete(prenda.image_path)
+  guardarUrls()
+  await olvidarFoto(prenda.image_path)
+  return { image_path: path, url }
 }
 
 export async function borrarPrenda(prenda: Prenda) {

@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Barra } from '../components/Layout'
 import { FormPrenda, limpiar, type Borrador } from '../components/FormPrenda'
 import { Foto } from '../components/Foto'
 import { Flatlay } from '../components/Flatlay'
 import { IconPapelera } from '../components/Icons'
-import { actualizarPrenda, borrarPrenda } from '../lib/api'
+import { actualizarPrenda, borrarPrenda, cambiarFoto } from '../lib/api'
 import { etiqueta } from '../lib/categorias'
+import { igualar, reencuadrar, SinPrenda } from '../lib/image'
 import { useArmario } from '../lib/store'
 
 export function DetallePrenda() {
@@ -18,6 +19,12 @@ export function DetallePrenda() {
   const [borrador, setBorrador] = useState<Borrador | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [igualando, setIgualando] = useState(false)
+  const [igualada, setIgualada] = useState(false)
+  const [propuesta, setPropuesta] = useState<{ blob: Blob; url: string } | null>(null)
+  useEffect(() => () => {
+    if (propuesta) URL.revokeObjectURL(propuesta.url)
+  }, [propuesta])
 
   if (!prenda) {
     return (
@@ -37,13 +44,57 @@ export function DetallePrenda() {
     setError(null)
     try {
       const datos = limpiar(borrador)
+      setIgualada(false)
       await actualizarPrenda(prenda!.id, datos)
       setPrendas((ps) => ps.map((p) => (p.id === prenda!.id ? { ...p, ...datos } : p)))
       setBorrador(null)
+      if (datos.categoria !== prenda!.categoria) {
+        const foto = await reencuadrar(await descargar(), prenda!.categoria, datos.categoria)
+        if (foto) await poner(foto)
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setOcupado(false)
+    }
+  }
+
+  async function descargar() {
+    const r = await fetch(prenda!.url)
+    if (!r.ok) throw new Error('No se pudo descargar la foto.')
+    return r.blob()
+  }
+
+  async function poner(foto: Blob) {
+    const nueva = await cambiarFoto(prenda!, foto)
+    setPrendas((ps) => ps.map((p) => (p.id === prenda!.id ? { ...p, ...nueva } : p)))
+  }
+
+  async function proponer() {
+    setIgualando(true)
+    setError(null)
+    try {
+      const blob = await igualar(await descargar(), prenda!.categoria)
+      setIgualada(!blob)
+      if (blob) setPropuesta({ blob, url: URL.createObjectURL(blob) })
+    } catch (e) {
+      setError(e instanceof SinPrenda ? 'No se distingue la prenda en la foto.' : e instanceof Error ? e.message : String(e))
+    } finally {
+      setIgualando(false)
+    }
+  }
+
+  async function aceptar() {
+    if (!propuesta) return
+    setIgualando(true)
+    setError(null)
+    try {
+      await poner(propuesta.blob)
+      setPropuesta(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setIgualando(false)
     }
   }
 
@@ -70,13 +121,27 @@ export function DetallePrenda() {
       </Barra>
       <div className="pila">
         <div className="vista-previa" style={{ viewTransitionName: 'foto-prenda' }}>
-          <Foto src={prenda.url} alt={prenda.nombre ?? ''} />
+          <Foto src={propuesta?.url ?? prenda.url} alt={prenda.nombre ?? ''} />
         </div>
+        {propuesta ? (
+          <div className="fila-botones">
+            <button className="btn" onClick={() => setPropuesta(null)} disabled={igualando}>Dejar como estaba</button>
+            <button className="btn primario" onClick={aceptar} disabled={igualando}>
+              {igualando && <span className="girando" />}
+              Usar esta
+            </button>
+          </div>
+        ) : (
+          <button className="btn" onClick={proponer} disabled={igualando || ocupado || igualada || Boolean(borrador)}>
+            {igualando && <span className="girando" />}
+            {igualando ? 'Igualando…' : igualada ? 'Ya está igualada' : 'Igualar foto con las demás'}
+          </button>
+        )}
 
         <FormPrenda valor={valor} onChange={setBorrador} />
         {error && <p className="aviso">{error}</p>}
         {borrador && (
-          <button className="btn primario ancho" onClick={guardar} disabled={ocupado}>
+          <button className="btn primario ancho" onClick={guardar} disabled={ocupado || igualando || Boolean(propuesta)}>
             {ocupado && <span className="girando" />}
             {ocupado ? 'Guardando…' : 'Guardar cambios'}
           </button>

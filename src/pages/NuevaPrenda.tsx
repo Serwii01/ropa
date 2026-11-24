@@ -5,8 +5,10 @@ import { Camara, hayCamara, pedirNivel } from '../components/Camara'
 import { FormPrenda, SelectorTipo, borradorVacio, limpiar, type Borrador } from '../components/FormPrenda'
 import { IconCamara, IconGaleria } from '../components/Icons'
 import { crearPrenda } from '../lib/api'
-import { comprimir, kb, quitarFondo, SinPrenda } from '../lib/image'
+import { comprimirConFondo, kb, quitarFondo, SinPrenda, terminar, type Recorte } from '../lib/image'
+import type { Categoria } from '../lib/categorias'
 import { guardar as guardarLocal, leer } from '../lib/local'
+import type { Vec } from '../lib/retoque'
 import { useArmario } from '../lib/store'
 
 type Fase = 'elegir' | 'procesando' | 'revisar'
@@ -18,39 +20,50 @@ export function NuevaPrenda() {
   const galeria = useRef<HTMLInputElement>(null)
 
   const [enCamara, setEnCamara] = useState(false)
+  const [borrador, setBorrador] = useState<Borrador>(borradorVacio)
   const [fase, setFase] = useState<Fase>('elegir')
   const [conFondo, setConFondo] = useState(false)
   const [foto, setFoto] = useState<File | null>(null)
-  const [resultado, setResultado] = useState<Blob | null>(null)
+  const [arriba, setArriba] = useState<Vec | null>(null)
+  const [recorte, setRecorte] = useState<Recorte | null>(null)
+  const [retocada, setRetocada] = useState(true)
+  const [conFondoLista, setConFondoLista] = useState<Blob | null>(null)
+  const { listo: resultado, preparando } = useFinal(recorte, retocada, borrador.categoria, conFondoLista)
   const [estado, setEstado] = useState('')
   const [avance, setAvance] = useState<number | null>(null) // null: sin porcentaje conocido
   const [error, setError] = useState<string | null>(null)
-  const [borrador, setBorrador] = useState<Borrador>(borradorVacio)
   const [guardando, setGuardando] = useState(false)
 
   const urlFoto = useObjectUrl(foto)
   const urlResultado = useObjectUrl(resultado)
 
-  async function procesar(archivo: File, mantenerFondo: boolean) {
+  async function procesar(archivo: File, mantenerFondo: boolean, inclinacion: Vec | null) {
     setFoto(archivo)
+    setArriba(inclinacion)
     setConFondo(mantenerFondo)
     setEstado('')
     setAvance(null)
     setFase('procesando')
     setError(null)
     try {
-      let imagen: Blob = archivo
+      let cortada: Recorte | null = null
       if (!mantenerFondo) {
-        imagen = await quitarFondo(archivo, (f, x) => {
+        cortada = await quitarFondo(archivo, inclinacion, (f, x) => {
           setAvance(f === 'modelo' && x ? x : null)
           if (f === 'modelo') setEstado(x != null && x < 1 ? `Preparando modelo · ${Math.round(x * 100)}%` : 'Preparando modelo…')
           else setEstado('Quitando fondo…')
         })
       }
       setAvance(null)
-      setEstado('Comprimiendo…')
-      const final = await comprimir(imagen, mantenerFondo ? { max: 1100, recortar: false } : { max: 900, recortar: true })
-      setResultado(final)
+      setEstado('Preparando…')
+      if (cortada) {
+        setConFondoLista(null)
+        setRecorte(cortada)
+        setRetocada(true)
+      } else {
+        setRecorte(null)
+        setConFondoLista(await comprimirConFondo(archivo))
+      }
       setFase('revisar')
     } catch (e) {
       console.error(e)
@@ -66,7 +79,7 @@ export function NuevaPrenda() {
   function elegido(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
     e.target.value = ''
-    if (f) procesar(f, conFondo)
+    if (f) procesar(f, conFondo, null)
   }
 
   function hacerFoto() {
@@ -76,7 +89,7 @@ export function NuevaPrenda() {
   }
 
   async function guardar() {
-    if (!resultado || !borrador.categoria) return
+    if (!resultado || preparando || !borrador.categoria) return
     setGuardando(true)
     try {
       const nueva = await crearPrenda(resultado, limpiar(borrador))
@@ -105,9 +118,9 @@ export function NuevaPrenda() {
             setEnCamara(false)
             camara.current?.click()
           }}
-          onFoto={(f) => {
+          onFoto={(f, inclinacion) => {
             setEnCamara(false)
-            procesar(f, conFondo)
+            procesar(f, conFondo, inclinacion)
           }}
         />
       )}
@@ -153,31 +166,61 @@ export function NuevaPrenda() {
         </div>
       )}
 
-      {fase === 'revisar' && resultado && (
+      {fase === 'revisar' && (recorte || conFondoLista) && (
         <div className="pila">
           <div className="vista-previa">
             {!conFondo && urlFoto && <img className="antes" src={urlFoto} alt="" />}
             {urlResultado && <img className="recorte" src={urlResultado} alt="Prenda procesada" />}
-            <span className="peso">{kb(resultado)}</span>
+            {resultado && <span className="peso">{kb(resultado)}</span>}
           </div>
           <div className="fila-botones">
-            <button className="btn" onClick={() => { setResultado(null); setFase('elegir') }}>Otra foto</button>
+            <button className="btn" onClick={() => { setRecorte(null); setConFondoLista(null); setFase('elegir') }}>Otra foto</button>
             {foto && (
-              <button className="btn" onClick={() => procesar(foto, !conFondo)}>
+              <button className="btn" onClick={() => procesar(foto, !conFondo, arriba)}>
                 {conFondo ? 'Quitar fondo' : 'Mantener fondo'}
               </button>
             )}
           </div>
+          {recorte && (
+            <label className="interruptor">
+              <input type="checkbox" checked={retocada} onChange={(e) => setRetocada(e.target.checked)} />
+              <span className="pista" />
+              <span>
+                Retocar
+                <small className="sutil">Iguala luz, inclinación y tamaño con las demás.</small>
+              </span>
+            </label>
+          )}
           <FormPrenda valor={borrador} onChange={setBorrador} />
           {error && <p className="aviso">{error}</p>}
-          <button className="btn primario ancho" disabled={!borrador.categoria || guardando} onClick={guardar}>
+          <button className="btn primario ancho" disabled={!borrador.categoria || !resultado || preparando || guardando} onClick={guardar}>
             {guardando && <span className="girando" />}
-            {guardando ? 'Guardando…' : borrador.categoria ? 'Guardar en el armario' : 'Elige un tipo'}
+            {guardando ? 'Guardando…' : preparando ? 'Preparando…' : borrador.categoria ? 'Guardar en el armario' : 'Elige un tipo'}
           </button>
         </div>
       )}
     </>
   )
+}
+
+/** Exactamente lo que se va a guardar. Se rehace al cambiar el tipo o el retoque. */
+function useFinal(recorte: Recorte | null, retocada: boolean, categoria: Categoria | null, conFondo: Blob | null) {
+  const [hecho, setHecho] = useState<{ de: Blob; tipo: Categoria | null; blob: Blob | null } | null>(null)
+  const de = recorte && (retocada ? recorte.retocada : recorte.original)
+  const tipo = retocada ? categoria : null // sin retocar tampoco se encuadra
+  useEffect(() => {
+    if (!de) return
+    let cancelado = false
+    terminar(de, tipo).then(
+      (blob) => !cancelado && setHecho({ de, tipo, blob }),
+      () => !cancelado && setHecho({ de, tipo, blob: null }),
+    )
+    return () => {
+      cancelado = true
+    }
+  }, [de, tipo])
+  if (!de) return { listo: conFondo, preparando: false }
+  return { listo: hecho?.blob ?? null, preparando: hecho?.de !== de || hecho.tipo !== tipo }
 }
 
 function useObjectUrl(blob: Blob | null) {

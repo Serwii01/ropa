@@ -27,6 +27,7 @@ const aislada = {
 }
 
 export default defineConfig({
+  worker: { format: 'es' }, // procesa las imágenes y carga el modelo por partes
   server: { headers: aislada },
   preview: { headers: aislada },
   plugins: [

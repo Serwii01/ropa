@@ -40,6 +40,30 @@ export const capaDe = (c: string): Capa => porId.get(c)?.capa ?? 'accesorio'
 
 const cmDe = (c: string): readonly [number, number] => porId.get(c)?.cm ?? [30, 30]
 
+type Cuerpo = { ancho: number; desde: number; hasta: number }
+const torso = (ancho: number): Cuerpo => ({ ancho, desde: 0.6, hasta: 0.85 })
+const cintura = (ancho: number): Cuerpo => ({ ancho, desde: 0.03, hasta: 0.1 })
+/** Ancho típico del cuerpo (cm) y a qué altura de la prenda se mide. */
+const CUERPO: Partial<Record<Categoria, Cuerpo>> = {
+  camiseta: torso(50),
+  camisa: torso(53),
+  top: torso(42),
+  sudadera: torso(55),
+  jersey: torso(54),
+  chaqueta: torso(56),
+  abrigo: torso(58),
+  vestido: { ancho: 40, desde: 0.3, hasta: 0.42 },
+  pantalon: cintura(40),
+  vaqueros: cintura(40),
+  shorts: cintura(42),
+  falda: cintura(38),
+}
+
+export function cuerpoDe(c: Categoria) {
+  const cuerpo = CUERPO[c]
+  return cuerpo && { ...cuerpo, cm: cmDe(c) }
+}
+
 /** Tamaño en el lienzo de una combinación (3:4): todas a la misma escala. En % del lienzo. */
 export function cajaEnCombinacion(c: string) {
   const [w, h] = cmDe(c)
