@@ -1,12 +1,22 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useMemo, useRef, useState } from 'react'
+import { Link, useViewTransitionState } from 'react-router-dom'
+import type { Prenda } from '../lib/api'
 import { CATEGORIAS, etiqueta, type Categoria } from '../lib/categorias'
 import { useArmario } from '../lib/store'
+import { useFlip } from '../lib/movimiento'
+import { Foto } from '../components/Foto'
 import { IconMas } from '../components/Icons'
 
 export function Armario() {
   const { prendas, cargando, error, recargar } = useArmario()
   const [filtro, setFiltro] = useState<Categoria | 'todas'>('todas')
+  const rejilla = useRef<HTMLDivElement>(null)
+  const capturar = useFlip(rejilla, filtro)
+
+  function filtrar(f: Categoria | 'todas') {
+    capturar()
+    setFiltro(f)
+  }
 
   const presentes = useMemo(() => {
     const cuenta = new Map<string, number>()
@@ -25,11 +35,11 @@ export function Armario() {
 
       {presentes.length > 1 && (
         <div className="chips desplazar">
-          <button className={`chip ${filtro === 'todas' ? 'activo' : ''}`} onClick={() => setFiltro('todas')}>
+          <button className={`chip ${filtro === 'todas' ? 'activo' : ''}`} onClick={() => filtrar('todas')}>
             Todas
           </button>
           {presentes.map((c) => (
-            <button key={c.id} className={`chip ${filtro === c.id ? 'activo' : ''}`} onClick={() => setFiltro(c.id)}>
+            <button key={c.id} className={`chip ${filtro === c.id ? 'activo' : ''}`} onClick={() => filtrar(c.id)}>
               {c.label} <span className="chip-n">{c.n}</span>
             </button>
           ))}
@@ -50,27 +60,33 @@ export function Armario() {
         <div className="vacio">
           <p>Tu armario está vacío.</p>
           <p className="sutil">Haz una foto a una prenda para empezar.</p>
-          <Link to="/nueva" className="btn primario">Añadir prenda</Link>
+          <Link to="/nueva" viewTransition className="btn primario">Añadir prenda</Link>
         </div>
       ) : (
-        <div className="rejilla">
-          {visibles.map((p) => (
-            <Link key={p.id} to={`/prenda/${p.id}`} className="tarjeta">
-              <div className="lienzo">
-                <img src={p.url} alt={p.nombre ?? etiqueta(p.categoria)} loading="lazy" />
-              </div>
-              <div className="tarjeta-pie">
-                <span className="tarjeta-nombre">{p.nombre ?? etiqueta(p.categoria)}</span>
-                {p.nombre && <span className="sutil">{etiqueta(p.categoria)}</span>}
-              </div>
-            </Link>
-          ))}
+        <div className="rejilla" ref={rejilla}>
+          {visibles.map((p) => <Tarjeta key={p.id} prenda={p} />)}
         </div>
       )}
 
-      <Link to="/nueva" className="fab" aria-label="Añadir prenda">
+      <Link to="/nueva" viewTransition className="fab" aria-label="Añadir prenda">
         <IconMas />
       </Link>
     </>
+  )
+}
+
+function Tarjeta({ prenda: p }: { prenda: Prenda }) {
+  const ruta = `/prenda/${p.id}`
+  const vuela = useViewTransitionState(ruta)
+  return (
+    <Link to={ruta} viewTransition className="tarjeta" data-flip={p.id}>
+      <div className="lienzo" style={vuela ? { viewTransitionName: 'foto-prenda' } : undefined}>
+        <Foto src={p.url} alt={p.nombre ?? etiqueta(p.categoria)} loading="lazy" />
+      </div>
+      <div className="tarjeta-pie">
+        <span className="tarjeta-nombre">{p.nombre ?? etiqueta(p.categoria)}</span>
+        {p.nombre && <span className="sutil">{etiqueta(p.categoria)}</span>}
+      </div>
+    </Link>
   )
 }

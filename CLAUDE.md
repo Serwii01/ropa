@@ -9,9 +9,9 @@ Inventario personal de armario como PWA instalable: fotografías prendas, se les
 - Despliegue en Vercel (`vercel.json` con rewrite SPA y cabeceras del service worker).
 
 ## Estructura
-- `src/lib/` — `supabase.ts` (cliente), `api.ts` (CRUD + URLs firmadas), `image.ts` (procesado), `categorias.ts` (tipos de prenda y su capa), `store.tsx` (contexto del armario).
+- `src/lib/` — `supabase.ts` (cliente), `api.ts` (CRUD + URLs firmadas), `image.ts` (procesado), `categorias.ts` (tipos de prenda y su capa), `movimiento.ts` (transiciones y FLIP), `store.tsx` (contexto del armario).
 - `src/pages/` — Login, Armario, NuevaPrenda, DetallePrenda, Combinaciones, Combinar.
-- `src/components/` — Layout, Flatlay (composición), FormPrenda, Icons.
+- `src/components/` — Layout, Flatlay (composición), Foto (imagen con fundido), FormPrenda, Icons.
 - `scripts/generate-icons.mjs` — iconos de la PWA.
 
 ## Comandos
@@ -24,6 +24,8 @@ npm run icons     # regenerar iconos PWA
 ## Convenciones
 - Nombres de dominio y UI en español (prendas, combinaciones, categorías).
 - Cada categoría pertenece a una capa (arriba, encima, abajo, calzado, accesorio) que decide su hueco en el flatlay.
+- Enlaces y `navigate` internos con `viewTransition`; el sentido de la animación (`data-nav`) lo pone `App.tsx`. Sin librerías de animación.
+- `VITE_SUPABASE_ANON_KEY` es la clave publishable; el build falla si es secreta.
 - `.env` no se sube; usar `.env.example` como referencia.
 
 ## Notas

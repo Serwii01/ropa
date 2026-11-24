@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom'
+import { Link, useViewTransitionState } from 'react-router-dom'
+import type { Outfit, Prenda } from '../lib/api'
 import { Flatlay } from '../components/Flatlay'
 import { IconMas } from '../components/Icons'
 import { useArmario } from '../lib/store'
@@ -24,28 +25,36 @@ export function Combinaciones() {
           <p className="sutil">
             {prendas.length < 2 ? 'Añade algunas prendas primero.' : 'Mezcla prendas y guarda las que te gusten.'}
           </p>
-          {prendas.length >= 2 && <Link to="/combinaciones/nueva" className="btn primario">Crear combinación</Link>}
+          {prendas.length >= 2 && <Link to="/combinaciones/nueva" viewTransition className="btn primario">Crear combinación</Link>}
         </div>
       ) : (
         <div className="rejilla">
           {outfits.map((o) => (
-            <Link key={o.id} to={`/combinaciones/${o.id}`} className="tarjeta">
-              <Flatlay prendas={o.prenda_ids.flatMap((id) => porId.get(id) ?? [])} />
-              {o.nombre && (
-                <div className="tarjeta-pie">
-                  <span className="tarjeta-nombre">{o.nombre}</span>
-                </div>
-              )}
-            </Link>
+            <Tarjeta key={o.id} outfit={o} prendas={o.prenda_ids.flatMap((id) => porId.get(id) ?? [])} />
           ))}
         </div>
       )}
 
       {prendas.length > 0 && (
-        <Link to="/combinaciones/nueva" className="fab" aria-label="Nueva combinación">
+        <Link to="/combinaciones/nueva" viewTransition className="fab" aria-label="Nueva combinación">
           <IconMas />
         </Link>
       )}
     </>
+  )
+}
+
+function Tarjeta({ outfit, prendas }: { outfit: Outfit; prendas: Prenda[] }) {
+  const ruta = `/combinaciones/${outfit.id}`
+  const vuela = useViewTransitionState(ruta)
+  return (
+    <Link to={ruta} viewTransition className="tarjeta">
+      <Flatlay prendas={prendas} style={vuela ? { viewTransitionName: 'foto-combinacion' } : undefined} />
+      {outfit.nombre && (
+        <div className="tarjeta-pie">
+          <span className="tarjeta-nombre">{outfit.nombre}</span>
+        </div>
+      )}
+    </Link>
   )
 }

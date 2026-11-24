@@ -1,13 +1,24 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Barra } from '../components/Layout'
+import { Foto } from '../components/Foto'
 import { Flatlay } from '../components/Flatlay'
 import { IconDado, IconPapelera } from '../components/Icons'
-import { borrarOutfit, guardarOutfit, type Prenda } from '../lib/api'
+import { borrarOutfit, guardarOutfit, type Outfit, type Prenda } from '../lib/api'
 import { CAPAS, capaDe, etiqueta, type Capa } from '../lib/categorias'
+import { movimientoReducido } from '../lib/movimiento'
 import { useArmario } from '../lib/store'
 
 type Seleccion = Partial<Record<Capa, string>>
+
+function seleccionDe(outfit: Outfit | undefined, prendas: Prenda[]): Seleccion {
+  const s: Seleccion = {}
+  for (const pid of outfit?.prenda_ids ?? []) {
+    const p = prendas.find((x) => x.id === pid)
+    if (p) s[capaDe(p.categoria)] = p.id
+  }
+  return s
+}
 
 export function Combinar() {
   const { id } = useParams()
@@ -15,22 +26,23 @@ export function Combinar() {
   const { prendas, outfits, setOutfits } = useArmario()
   const existente = id ? outfits.find((o) => o.id === id) : undefined
 
-  const [sel, setSel] = useState<Seleccion>({})
-  const [nombre, setNombre] = useState('')
+  const [sel, setSel] = useState<Seleccion>(() => seleccionDe(existente, prendas))
+  const [nombre, setNombre] = useState(existente?.nombre ?? '')
+  // Las prendas caen en su sitio solo tras el primer toque, no al abrir
+  const [animar, setAnimar] = useState(false)
+  const [tirada, setTirada] = useState(0)
+  const barajando = useRef<number>()
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Cargar la combinación al editar (cuando el armario termina de cargar)
   useEffect(() => {
     if (!existente) return
-    const s: Seleccion = {}
-    for (const pid of existente.prenda_ids) {
-      const p = prendas.find((x) => x.id === pid)
-      if (p) s[capaDe(p.categoria)] = p.id
-    }
-    setSel(s)
+    setSel(seleccionDe(existente, prendas))
     setNombre(existente.nombre ?? '')
   }, [existente, prendas])
+
+  useEffect(() => () => clearTimeout(barajando.current), [])
 
   const porCapa = useMemo(() => {
     const m = new Map<Capa, Prenda[]>()
@@ -44,10 +56,12 @@ export function Combinar() {
   const elegidas = Object.values(sel).flatMap((pid) => prendas.find((p) => p.id === pid) ?? [])
 
   function alternar(capa: Capa, pid: string) {
+    clearTimeout(barajando.current)
+    setAnimar(true)
     setSel((s) => ({ ...s, [capa]: s[capa] === pid ? undefined : pid }))
   }
 
-  function aleatorio() {
+  function aleatorio(): Seleccion {
     const azar = <T,>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)]
     const s: Seleccion = {}
     for (const capa of ['superior', 'inferior', 'calzado'] as Capa[]) {
@@ -62,16 +76,29 @@ export function Combinar() {
     // Un vestido no necesita parte de abajo
     const sup = prendas.find((p) => p.id === s.superior)
     if (sup?.categoria === 'vestido') delete s.inferior
-    setSel(s)
+    return s
+  }
+
+  function tirarDado() {
+    clearTimeout(barajando.current)
+    setAnimar(true)
+    setTirada((t) => t + 1)
+    let quedan = movimientoReducido() ? 0 : 3
+    const paso = () => {
+      setSel(aleatorio())
+      if (quedan-- > 0) barajando.current = window.setTimeout(paso, 110)
+    }
+    paso()
   }
 
   async function guardar() {
+    clearTimeout(barajando.current)
     setOcupado(true)
     setError(null)
     try {
       const o = await guardarOutfit({ id: existente?.id, nombre: nombre.trim() || null, prenda_ids: elegidas.map((p) => p.id) })
       setOutfits((os) => (existente ? os.map((x) => (x.id === o.id ? o : x)) : [o, ...os]))
-      navigate('/combinaciones', { replace: true })
+      navigate('/combinaciones', { replace: true, viewTransition: true })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       setOcupado(false)
@@ -84,7 +111,7 @@ export function Combinar() {
     try {
       await borrarOutfit(existente.id)
       setOutfits((os) => os.filter((x) => x.id !== existente.id))
-      navigate('/combinaciones', { replace: true })
+      navigate('/combinaciones', { replace: true, viewTransition: true })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       setOcupado(false)
@@ -94,8 +121,8 @@ export function Combinar() {
   return (
     <>
       <Barra titulo={existente ? 'Editar combinación' : 'Nueva combinación'}>
-        <button className="icono-btn" aria-label="Combinación al azar" onClick={aleatorio}>
-          <IconDado />
+        <button className="icono-btn" aria-label="Combinación al azar" onClick={tirarDado}>
+          <IconDado key={tirada} className={tirada ? 'rueda' : undefined} />
         </button>
         {existente && (
           <button className="icono-btn peligro" aria-label="Eliminar" onClick={borrar} disabled={ocupado}>
@@ -106,7 +133,7 @@ export function Combinar() {
 
       <div className="combinar">
         <div className="combinar-lienzo">
-          <Flatlay prendas={elegidas} className="grande" />
+          <Flatlay prendas={elegidas} className={`grande ${animar ? 'animado' : ''}`} style={existente && { viewTransitionName: 'foto-combinacion' }} />
         </div>
 
         {CAPAS.map(({ id: capa, label }) => {
@@ -124,7 +151,7 @@ export function Combinar() {
                     aria-pressed={sel[capa] === p.id}
                     title={p.nombre ?? etiqueta(p.categoria)}
                   >
-                    <img src={p.url} alt={p.nombre ?? etiqueta(p.categoria)} loading="lazy" />
+                    <Foto src={p.url} alt={p.nombre ?? etiqueta(p.categoria)} loading="lazy" />
                   </button>
                 ))}
               </div>
@@ -139,6 +166,7 @@ export function Combinar() {
           </label>
           {error && <p className="aviso">{error}</p>}
           <button className="btn primario ancho" disabled={elegidas.length === 0 || ocupado} onClick={guardar}>
+            {ocupado && <span className="girando" />}
             {ocupado ? 'Guardando…' : 'Guardar combinación'}
           </button>
         </div>

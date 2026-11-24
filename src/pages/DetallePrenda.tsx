@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Barra } from '../components/Layout'
 import { FormPrenda, limpiar, type Borrador } from '../components/FormPrenda'
+import { Foto } from '../components/Foto'
 import { Flatlay } from '../components/Flatlay'
 import { IconPapelera } from '../components/Icons'
 import { actualizarPrenda, borrarPrenda } from '../lib/api'
@@ -53,7 +54,7 @@ export function DetallePrenda() {
       await borrarPrenda(prenda!)
       setPrendas((ps) => ps.filter((p) => p.id !== prenda!.id))
       setOutfits((os) => os.map((o) => ({ ...o, prenda_ids: o.prenda_ids.filter((x) => x !== prenda!.id) })))
-      navigate('/', { replace: true })
+      navigate('/', { replace: true, viewTransition: true })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       setOcupado(false)
@@ -68,14 +69,15 @@ export function DetallePrenda() {
         </button>
       </Barra>
       <div className="pila">
-        <div className="vista-previa">
-          <img src={prenda.url} alt={prenda.nombre ?? ''} />
+        <div className="vista-previa" style={{ viewTransitionName: 'foto-prenda' }}>
+          <Foto src={prenda.url} alt={prenda.nombre ?? ''} />
         </div>
 
         <FormPrenda valor={valor} onChange={setBorrador} />
         {error && <p className="aviso">{error}</p>}
         {borrador && (
           <button className="btn primario ancho" onClick={guardar} disabled={ocupado}>
+            {ocupado && <span className="girando" />}
             {ocupado ? 'Guardando…' : 'Guardar cambios'}
           </button>
         )}
@@ -85,7 +87,7 @@ export function DetallePrenda() {
             <h2 className="subtitulo">En {enOutfits.length} {enOutfits.length === 1 ? 'combinación' : 'combinaciones'}</h2>
             <div className="rejilla mini">
               {enOutfits.map((o) => (
-                <Link key={o.id} to={`/combinaciones/${o.id}`} className="tarjeta">
+                <Link key={o.id} to={`/combinaciones/${o.id}`} viewTransition className="tarjeta">
                   <Flatlay prendas={prendas.filter((p) => o.prenda_ids.includes(p.id))} />
                 </Link>
               ))}

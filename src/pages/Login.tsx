@@ -55,7 +55,8 @@ export function Login() {
           </label>
           {mensaje && <p className="aviso">{mensaje}</p>}
           <button className="btn primario" disabled={enviando}>
-            {enviando ? '…' : modo === 'entrar' ? 'Entrar' : 'Crear cuenta'}
+            {enviando && <span className="girando" />}
+            {enviando ? (modo === 'entrar' ? 'Entrando…' : 'Creando…') : modo === 'entrar' ? 'Entrar' : 'Crear cuenta'}
           </button>
         </form>
         <button className="enlace" onClick={() => setModo(modo === 'entrar' ? 'registro' : 'entrar')}>

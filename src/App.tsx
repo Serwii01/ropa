@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
 import { configurado, supabase } from './lib/supabase'
+import { conTransicion } from './lib/movimiento'
 import { ArmarioProvider } from './lib/store'
 import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
@@ -10,6 +11,44 @@ import { NuevaPrenda } from './pages/NuevaPrenda'
 import { DetallePrenda } from './pages/DetallePrenda'
 import { Combinaciones } from './pages/Combinaciones'
 import { Combinar } from './pages/Combinar'
+
+// Si el sistema ya anima el gesto de volver, no animamos encima
+let animaElSistema = false
+window.addEventListener('popstate', (e) => {
+  animaElSistema = (e as PopStateEvent & { hasUAVisualTransition?: boolean }).hasUAVisualTransition ?? false
+})
+
+const router = createBrowserRouter([
+  {
+    element: <Layout />,
+    children: [
+      { index: true, element: <Armario /> },
+      { path: 'nueva', element: <NuevaPrenda /> },
+      { path: 'prenda/:id', element: <DetallePrenda /> },
+      { path: 'combinaciones', element: <Combinaciones /> },
+      { path: 'combinaciones/nueva', element: <Combinar /> },
+      { path: 'combinaciones/:id', element: <Combinar /> },
+      { path: '*', element: <Navigate to="/" replace /> },
+    ],
+  },
+])
+
+// El sentido de la transición (styles.css) depende de si se entra o se sale de una pantalla
+const esSecundaria = (ruta: string) => ruta !== '/' && ruta !== '/combinaciones'
+let anterior = router.state.location
+router.subscribe(({ location, historyAction }) => {
+  if (location === anterior) return
+  const de = esSecundaria(anterior.pathname)
+  const a = esSecundaria(location.pathname)
+  anterior = location
+  let sentido = 'lado'
+  if (animaElSistema) sentido = 'sistema'
+  else if (de && a) sentido = historyAction === 'POP' ? 'atras' : 'adelante'
+  else if (a) sentido = 'adelante'
+  else if (de) sentido = 'atras'
+  animaElSistema = false
+  document.documentElement.dataset.nav = sentido
+})
 
 export default function App() {
   if (!configurado) return <SinConfigurar />
@@ -20,29 +59,24 @@ function ConSesion() {
   const [sesion, setSesion] = useState<Session | null | undefined>(undefined)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSesion(data.session))
-    const { data } = supabase.auth.onAuthStateChange((_e, s) => setSesion(s))
+    let ultimo: string | null | undefined
+    function aplicar(s: Session | null) {
+      const usuario = s?.user.id ?? null
+      if (usuario === ultimo) return setSesion(s)
+      ultimo = usuario
+      conTransicion(() => setSesion(s))
+    }
+    supabase.auth.getSession().then(({ data }) => aplicar(data.session))
+    const { data } = supabase.auth.onAuthStateChange((_e, s) => aplicar(s))
     return () => data.subscription.unsubscribe()
   }, [])
 
-  if (sesion === undefined) return <div className="splash marca grande">ropa</div>
+  if (sesion === undefined) return <div className="splash"><span className="marca grande">ropa</span></div>
   if (!sesion) return <Login />
 
   return (
     <ArmarioProvider key={sesion.user.id}>
-      <BrowserRouter>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<Armario />} />
-            <Route path="nueva" element={<NuevaPrenda />} />
-            <Route path="prenda/:id" element={<DetallePrenda />} />
-            <Route path="combinaciones" element={<Combinaciones />} />
-            <Route path="combinaciones/nueva" element={<Combinar />} />
-            <Route path="combinaciones/:id" element={<Combinar />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <RouterProvider router={router} />
     </ArmarioProvider>
   )
 }

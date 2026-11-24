@@ -6,14 +6,30 @@
 
 export type Progreso = (fase: 'modelo' | 'fondo' | 'comprimir', fraccion?: number) => void
 
+const DESCARGA_ESTIMADA = 110e6 // bytes: modelo + runtime
+
 export async function quitarFondo(foto: Blob, progreso?: Progreso): Promise<Blob> {
   // Import dinámico: la librería (y su runtime ONNX) solo se descarga al añadir prendas
   const { removeBackground } = await import('@imgly/background-removal')
   progreso?.('modelo', 0)
+  // Se descargan varios archivos y cada uno avisa por separado: se suman. El total no se conoce
+  // hasta empezar el último, así que se parte de una estimación y la barra nunca retrocede.
+  const archivos = new Map<string, [number, number]>()
+  let fraccion = 0
   return removeBackground(foto, {
     output: { format: 'image/png', quality: 1 },
     progress: (clave, actual, total) => {
-      if (clave.startsWith('fetch')) progreso?.('modelo', total ? actual / total : undefined)
+      if (clave.startsWith('fetch')) {
+        archivos.set(clave, [actual, total])
+        let bajado = 0
+        let suma = 0
+        for (const [b, t] of archivos.values()) {
+          bajado += b
+          suma += t
+        }
+        fraccion = Math.max(fraccion, bajado / Math.max(suma, DESCARGA_ESTIMADA))
+        progreso?.('modelo', fraccion)
+      }
       else progreso?.('fondo')
     },
   })

@@ -20,6 +20,7 @@ export function NuevaPrenda() {
   const [foto, setFoto] = useState<File | null>(null)
   const [resultado, setResultado] = useState<Blob | null>(null)
   const [estado, setEstado] = useState('')
+  const [avance, setAvance] = useState<number | null>(null) // null: sin porcentaje conocido
   const [error, setError] = useState<string | null>(null)
   const [borrador, setBorrador] = useState<Borrador>(borradorVacio)
   const [guardando, setGuardando] = useState(false)
@@ -30,16 +31,20 @@ export function NuevaPrenda() {
   async function procesar(archivo: File, mantenerFondo: boolean) {
     setFoto(archivo)
     setConFondo(mantenerFondo)
+    setEstado('')
+    setAvance(null)
     setFase('procesando')
     setError(null)
     try {
       let imagen: Blob = archivo
       if (!mantenerFondo) {
         imagen = await quitarFondo(archivo, (f, x) => {
+          setAvance(f === 'modelo' && x ? x : null)
           if (f === 'modelo') setEstado(x != null && x < 1 ? `Preparando modelo · ${Math.round(x * 100)}%` : 'Preparando modelo…')
           else setEstado('Quitando fondo…')
         })
       }
+      setAvance(null)
       setEstado('Comprimiendo…')
       const final = await comprimir(imagen, mantenerFondo ? { max: 1100, recortar: false } : { max: 900, recortar: true })
       setResultado(final)
@@ -63,7 +68,7 @@ export function NuevaPrenda() {
     try {
       const nueva = await crearPrenda(resultado, limpiar(borrador))
       setPrendas((ps) => [nueva, ...ps])
-      navigate('/', { replace: true })
+      navigate('/', { replace: true, viewTransition: true })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       setGuardando(false)
@@ -108,14 +113,18 @@ export function NuevaPrenda() {
             {urlFoto && <img src={urlFoto} alt="" />}
             <div className="barrido" />
           </div>
-          <p className="estado">{estado}</p>
+          <div className={`progreso ${avance == null ? 'indefinido' : ''}`}>
+            <span style={avance == null ? undefined : { transform: `scaleX(${avance})` }} />
+          </div>
+          <p className="estado" role="status">{estado}</p>
         </div>
       )}
 
       {fase === 'revisar' && resultado && (
         <div className="pila">
           <div className="vista-previa">
-            {urlResultado && <img src={urlResultado} alt="Prenda procesada" />}
+            {!conFondo && urlFoto && <img className="antes" src={urlFoto} alt="" />}
+            {urlResultado && <img className="recorte" src={urlResultado} alt="Prenda procesada" />}
             <span className="peso">{kb(resultado)}</span>
           </div>
           <div className="fila-botones">
@@ -129,6 +138,7 @@ export function NuevaPrenda() {
           <FormPrenda valor={borrador} onChange={setBorrador} />
           {error && <p className="aviso">{error}</p>}
           <button className="btn primario ancho" disabled={!borrador.categoria || guardando} onClick={guardar}>
+            {guardando && <span className="girando" />}
             {guardando ? 'Guardando…' : borrador.categoria ? 'Guardar en el armario' : 'Elige un tipo'}
           </button>
         </div>

@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, ScrollRestoration, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { IconArmario, IconAtras, IconCombinar, IconSalir } from './Icons'
 
@@ -19,15 +19,16 @@ export function Layout() {
         <Outlet />
       </main>
       <nav className="tabbar">
-        <NavLink to="/" end>
+        <NavLink to="/" end viewTransition>
           <IconArmario />
           <span>Armario</span>
         </NavLink>
-        <NavLink to="/combinaciones">
+        <NavLink to="/combinaciones" viewTransition>
           <IconCombinar />
           <span>Combinar</span>
         </NavLink>
       </nav>
+      <ScrollRestoration />
     </div>
   )
 }
@@ -40,7 +41,7 @@ export function Barra({ titulo, children }: { titulo: string; children?: React.R
       <button
         className="icono-btn"
         aria-label="Volver"
-        onClick={() => (history.state?.idx > 0 ? navigate(-1) : navigate('/'))}
+        onClick={() => (history.state?.idx > 0 ? navigate(-1) : navigate('/', { viewTransition: true }))}
       >
         <IconAtras />
       </button>
