@@ -1,9 +1,28 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+/** Todo lo VITE_* acaba en el navegador: corta si la clave es secreta en vez de pública. */
+function soloClavePublica(): Plugin {
+  return {
+    name: 'solo-clave-publica',
+    config(_config, { mode }) {
+      const clave = loadEnv(mode, process.cwd(), 'VITE_').VITE_SUPABASE_ANON_KEY?.trim() ?? ''
+      let rol = ''
+      try {
+        rol = JSON.parse(Buffer.from(clave.split('.')[1] ?? '', 'base64url').toString()).role
+      } catch {
+        // no es un JWT
+      }
+      if (clave.startsWith('sb_secret_') || rol === 'service_role')
+        throw new Error('VITE_SUPABASE_ANON_KEY es una clave secreta; usa la publishable (sb_publishable_…) o la anon.')
+    },
+  }
+}
+
 export default defineConfig({
   plugins: [
+    soloClavePublica(),
     react(),
     VitePWA({
       registerType: 'autoUpdate',

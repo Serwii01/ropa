@@ -1,5 +1,16 @@
 import { useState, type FormEvent } from 'react'
+import type { AuthError } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+
+/** Traduce los fallos de acceso más comunes; el resto se muestra tal cual. */
+function textoError(error: AuthError): string {
+  if (error.name === 'AuthRetryableFetchError')
+    return 'No se puede conectar con el servidor. Revisa tu conexión o si el proyecto de Supabase está pausado.'
+  if (error.code === 'invalid_credentials') return 'Email o contraseña incorrectos.'
+  if (error.code === 'email_not_confirmed') return 'Confirma tu cuenta desde el correo que te enviamos.'
+  if (error.code === 'signup_disabled') return 'El registro está cerrado.'
+  return error.message
+}
 
 export function Login() {
   const [modo, setModo] = useState<'entrar' | 'registro'>('entrar')
@@ -17,7 +28,7 @@ export function Login() {
         ? await supabase.auth.signInWithPassword({ email, password })
         : await supabase.auth.signUp({ email, password })
     setEnviando(false)
-    if (error) setMensaje(error.message)
+    if (error) setMensaje(textoError(error))
     else if (modo === 'registro' && !data.session) setMensaje('Revisa tu correo para confirmar la cuenta.')
   }
 
